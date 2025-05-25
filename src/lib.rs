@@ -68,4 +68,39 @@ mod tests {
         pool.execute(|| println!("hello threadpool t3"));
         pool.execute(|| println!("hello threadpool t4"));
     }
+
+
+    #[test]
+    fn if_works_2() {
+        let pool = ThreadPool::new(2);
+        pool.execute(|| { 
+            println!("hello threadpool t1");
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("done: hello threadpool t1");
+            
+        });
+        pool.execute(|| { 
+            println!("hello threadpool t2");
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("done: hello threadpool t2");
+        });
+        pool.execute(|| { 
+            println!("hello threadpool t3");
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("done: hello threadpool t3");
+        });
+        pool.execute(|| { 
+            println!("hello threadpool t4");
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("done: hello threadpool t4");
+        });
+
+        pool.execute(|| {
+            println!("hello threadpool t5");
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("done: hello threadpool t5");
+        });
+        
+    }
+
 }
