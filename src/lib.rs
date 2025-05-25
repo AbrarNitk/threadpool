@@ -1,4 +1,5 @@
 use std::sync::{mpsc, Arc, Mutex};
+// use std::sync::mpmc::RecvError;
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
@@ -55,13 +56,20 @@ pub struct Worker {
 impl Worker {
     fn new(id: usize, rc: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
         let handle = std::thread::spawn(move || loop {
-            let job = rc.lock().unwrap().recv().unwrap();
+            let job = rc.lock().unwrap().recv();
             match job {
-                Message::NewJob(job) => {
+                Ok(Message::NewJob(job)) => {
                     println!("Worker {} got a job; executing.", id);
                     job();
                 }
-                Message::Terminate => break,
+                // Ok(Message::Terminate) => break,
+                Err(_) => {
+                    println!("Worker {id} disconnected; shutting down.");
+                    break;
+                }
+                _ => {
+                    println!("Worker {} got a message that wasn't a job; ignoring.", id);
+                }
             }
         });
 
