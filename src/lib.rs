@@ -9,7 +9,7 @@ enum Message {
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Message>,
+    sender: Option<mpsc::Sender<Message>>,
 }
 
 impl ThreadPool {
@@ -20,7 +20,10 @@ impl ThreadPool {
         for id in 0..size {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
-        ThreadPool { workers, sender }
+        ThreadPool {
+            workers,
+            sender: Some(sender),
+        }
     }
 
     pub fn execute<F>(&self, f: F)
@@ -28,15 +31,19 @@ impl ThreadPool {
         F: FnOnce() + Send + 'static,
     {
         let job = Message::NewJob(Box::new(f));
-        self.sender.send(job).unwrap();
+        self.sender.as_ref().unwrap().send(job).unwrap();
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
+        // self.sender.send(Message::Terminate).unwrap();
+
         for _ in &self.workers {
-            let _ = self.sender.send(Message::Terminate);
+            let _ = self.sender.as_ref().unwrap().send(Message::Terminate);
         }
+
+        drop(self.sender.take());
     }
 }
 
@@ -82,12 +89,12 @@ mod tests {
     fn if_works() {
         let pool = ThreadPool::new(4);
         pool.execute(|| {
-            std::thread::sleep(std::time::Duration::from_secs(3));
+            std::thread::sleep(std::time::Duration::from_secs(1));
             println!("hello threadpool t1")
         });
         pool.execute(|| println!("hello threadpool t2"));
         pool.execute(|| {
-            std::thread::sleep(std::time::Duration::from_secs(3));
+            std::thread::sleep(std::time::Duration::from_secs(1));
             println!("hello threadpool t3")
         });
         pool.execute(|| println!("hello threadpool t4"));
