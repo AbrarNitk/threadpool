@@ -1,3 +1,5 @@
+pub mod num_cpus;
+
 use std::sync::{mpsc, Arc, Mutex};
 // use std::sync::mpmc::RecvError;
 
@@ -95,17 +97,16 @@ mod tests {
     use super::*;
     #[test]
     fn if_works() {
-        let pool = ThreadPool::new(4);
-        pool.execute(|| {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            println!("hello threadpool t1")
-        });
-        pool.execute(|| println!("hello threadpool t2"));
-        pool.execute(|| {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            println!("hello threadpool t3")
-        });
-        pool.execute(|| println!("hello threadpool t4"));
+        let pool = ThreadPool::new(32);
+
+        for id in 0..5000000 {
+            let p = move || {
+                let path = std::path::Path::new("hello");
+                if path.exists() {}
+                println!("hello threadpool t-{}", id)
+            };
+            pool.execute(p);
+        }
     }
 
     #[test]
