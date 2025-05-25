@@ -1,0 +1,10 @@
+# `threadpool` in Rust
+
+This project is intended to create a threadpool from scratch for learning
+purpose.
+
+
+## References
+
+- [Create Thread Pool and Storing Threads](https://web.mit.edu/rust-lang_v1.25/arch/amd64_ubuntu1404/share/doc/rust/html/book/second-edition/ch20-04-storing-threads.html)
+- 
