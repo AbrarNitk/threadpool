@@ -1,10 +1,15 @@
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
+enum Message {
+    NewJob(Job),
+    Terminate,
+}
+
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Job>,
+    sender: mpsc::Sender<Message>,
 }
 
 impl ThreadPool {
@@ -22,8 +27,16 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        let job = Box::new(f);
+        let job = Message::NewJob(Box::new(f));
         self.sender.send(job).unwrap();
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        for _ in &self.workers {
+            let _ = self.sender.send(Message::Terminate);
+        }
     }
 }
 
@@ -33,12 +46,15 @@ pub struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, rc: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let handle = std::thread::spawn(move || {
-            loop {
-                let job = rc.lock().unwrap().recv().unwrap();
-                println!("Worker {} got a job; executing.", id);
-                job();
+    fn new(id: usize, rc: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
+        let handle = std::thread::spawn(move || loop {
+            let job = rc.lock().unwrap().recv().unwrap();
+            match job {
+                Message::NewJob(job) => {
+                    println!("Worker {} got a job; executing.", id);
+                    job();
+                }
+                Message::Terminate => break,
             }
         });
 
@@ -51,9 +67,11 @@ impl Worker {
 
 impl Drop for Worker {
     fn drop(&mut self) {
-        println!("Shutting down worker {}", self.id);
-        self.thread.take().expect("").join().unwrap();
-        println!("Worker {} shut down.", self.id);
+        if let Some(th) = self.thread.take() {
+            // println!("Shutting down worker {}", self.id);
+            th.join().unwrap();
+            println!("Worker {} shut down.", self.id);
+        }
     }
 }
 
@@ -63,33 +81,37 @@ mod tests {
     #[test]
     fn if_works() {
         let pool = ThreadPool::new(4);
-        pool.execute(|| println!("hello threadpool t1"));
+        pool.execute(|| {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("hello threadpool t1")
+        });
         pool.execute(|| println!("hello threadpool t2"));
-        pool.execute(|| println!("hello threadpool t3"));
+        pool.execute(|| {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            println!("hello threadpool t3")
+        });
         pool.execute(|| println!("hello threadpool t4"));
     }
 
-
     #[test]
-    fn if_works_2() {
+    fn with_time() {
         let pool = ThreadPool::new(2);
-        pool.execute(|| { 
+        pool.execute(|| {
             println!("hello threadpool t1");
             std::thread::sleep(std::time::Duration::from_secs(3));
             println!("done: hello threadpool t1");
-            
         });
-        pool.execute(|| { 
+        pool.execute(|| {
             println!("hello threadpool t2");
             std::thread::sleep(std::time::Duration::from_secs(3));
             println!("done: hello threadpool t2");
         });
-        pool.execute(|| { 
+        pool.execute(|| {
             println!("hello threadpool t3");
             std::thread::sleep(std::time::Duration::from_secs(3));
             println!("done: hello threadpool t3");
         });
-        pool.execute(|| { 
+        pool.execute(|| {
             println!("hello threadpool t4");
             std::thread::sleep(std::time::Duration::from_secs(3));
             println!("done: hello threadpool t4");
@@ -100,7 +122,5 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_secs(3));
             println!("done: hello threadpool t5");
         });
-        
     }
-
 }
