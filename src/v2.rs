@@ -54,6 +54,31 @@ impl ThreadPool {
         *job_available = true;
         condvar.notify_all();
     }
+
+    pub fn shutdown(self) {
+        // signal all the workers to stop
+        for _ in self.workers.iter() {
+            println!("sending the exit message");
+            let message = Message::Exit;
+            self.queue.push(message);
+            // mark job is available
+            let (lock, condvar) = &*self.job_signal;
+            let mut job_available = lock.lock().unwrap();
+            *job_available = true;
+            condvar.notify_all();
+        }
+
+        println!("Jobs in the queue: {}", self.queue.len());
+
+        // take out all the workers and wait to complete the work
+        for worker in self.workers {
+            println!("waiting for thread to complete");
+            worker.thread.join().unwrap();
+            println!("thread completed");
+        }
+
+        println!("Jobs in the queue: {}", self.queue.len());
+    }
 }
 
 pub struct Worker {
@@ -71,7 +96,15 @@ impl Worker {
             println!("running");
 
             match queue.pop() {
-                Some(Message::Exit) => break,
+                Some(Message::Exit) => {
+                    println!("worker exit: {}", id);
+
+                    let (signal, condvar) = &*job_signal;
+                    let mut job_available = signal.lock().unwrap();
+                    condvar.notify_all();
+                    *job_available = true;
+                    break;
+                }
                 Some(Message::Job(job)) => {
                     job();
                 }
@@ -121,7 +154,9 @@ pub mod test {
 
         pool.execute(|| println!("hello4"));
 
-        std::thread::sleep(std::time::Duration::from_secs(100));
+        pool.shutdown();
+
+        // std::thread::sleep(std::time::Duration::from_secs(100));
         // if workers have some jobs it should not get shutdown
     }
 }
