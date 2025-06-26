@@ -40,7 +40,6 @@ pub fn get_physical_cores() -> io::Result<usize> {
     Ok(unique_physical_cores.len())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
